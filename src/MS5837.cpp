@@ -114,7 +114,6 @@ void LANDSHARKS_MS5837::read() {
 		return;
 	}
 	
-	connectionGood = true;
 	//if 20ms have passed since read AND the next reading should be a D1 (pressure) reading, read.
 	if(millis() - pressReadStartTime > 20 && pressReadNext) {
 		//get requested D1 numbers
@@ -141,6 +140,8 @@ void LANDSHARKS_MS5837::read() {
 		
 		tempReadStartTime = millis(); //start a timer for the temperature read
 		pressReadNext = false; //ensure the next reading is a temperautre reading
+		
+		connectionGood = true;
 		
 		calculate(); //calculate only gets run when necessary
 	}
@@ -170,6 +171,8 @@ void LANDSHARKS_MS5837::read() {
 		
 		pressReadStartTime = millis();
 		pressReadNext = true;
+		
+		connectionGood = true;
 		
 		calculate();
 	}
