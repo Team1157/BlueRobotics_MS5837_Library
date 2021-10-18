@@ -82,7 +82,12 @@ bool LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	// the sensor version is unrecognised.
 	// (The MS5637 has the same address as the MS5837 and will also pass the CRC check)
 	// (but will hopefully be unrecognised.)
+	initialized = true;
 	return true;
+}
+
+bool LANDSHARKS_MS5837::isInitialized() {
+	return initialized;
 }
 
 void LANDSHARKS_MS5837::setModel(uint8_t model) {
@@ -116,7 +121,7 @@ void LANDSHARKS_MS5837::read() {
 		_i2cPort->beginTransmission(MS5837_ADDR);
 		_i2cPort->write(MS5837_ADC_READ);
 		if(_i2cPort->endTransmission() != 0){
-			connectionGood = false;	
+			connectionGood = false;
 			return;
 		}
 

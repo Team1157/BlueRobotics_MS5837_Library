@@ -67,6 +67,7 @@ public:
 	void setFluidDensity(float density);
 
 	bool isConnectionGood();
+	bool isInitialized();
 	 
 	void read();
 
@@ -99,6 +100,7 @@ private:
 	uint8_t _model;
 	
 	bool connectionGood;
+	bool initialized;
 
 	float fluidDensity = 1029;
 
