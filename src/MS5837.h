@@ -99,7 +99,7 @@ private:
 	int32_t P;
 	uint8_t _model;
 	
-	bool connectionGood;
+	bool connectionGood = false;
 	bool initialized;
 
 	float fluidDensity = 1029;

@@ -40,7 +40,10 @@ bool LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	// Reset the MS5837, per datasheet
 	_i2cPort->beginTransmission(MS5837_ADDR);
 	_i2cPort->write(MS5837_RESET);
-	_i2cPort->endTransmission();
+	if(_i2cPort->endTransmission() != 0){
+		connectionGood = false;
+		return;
+	}
 
 	// Wait for reset to complete
 	delay(10);
@@ -111,12 +114,6 @@ void LANDSHARKS_MS5837::read() {
 	
 	static bool valToRead = PRES;
 	
-	//Check that _i2cPort is not NULL (i.e. has the user forgoten to call .init or .begin?)
-	if (_i2cPort == NULL)
-	{
-		return;
-	}
-	
 	//if 20ms have passed since read AND the next reading should be a D1 (pressure) reading, read.
 	if(millis() - readStartTime > 20) {
 		//get requested D1 numbers
@@ -145,7 +142,6 @@ void LANDSHARKS_MS5837::read() {
 			valToRead = PRES;
 			D2_temp = readVal;
 		}
-		
 		if(_i2cPort->endTransmission() != 0){
 			connectionGood = false;	
 			return;
