@@ -8,6 +8,9 @@ const uint8_t MS5837_PROM_READ = 0xA0;
 const uint8_t MS5837_CONVERT_D1_8192 = 0x4A;
 const uint8_t MS5837_CONVERT_D2_8192 = 0x5A;
 
+const bool PRES = false;
+const bool TEMP = true;
+
 const float LANDSHARKS_MS5837::Pa = 100.0f;
 const float LANDSHARKS_MS5837::bar = 0.001f;
 const float LANDSHARKS_MS5837::mbar = 1.0f;
@@ -19,6 +22,7 @@ const uint8_t LANDSHARKS_MS5837::MS5837_UNRECOGNISED = 255;
 const uint8_t MS5837_02BA01 = 0x00; // Sensor version: From MS5837_02BA datasheet Version PROM Word 0
 const uint8_t MS5837_02BA21 = 0x15; // Sensor version: From MS5837_02BA datasheet Version PROM Word 0
 const uint8_t MS5837_30BA26 = 0x1A; // Sensor version: From MS5837_30BA datasheet Version PROM Word 0
+
 /*
 LANDSHARKS_MS5837::MS5837() {
 	fluidDensity = 1029;
@@ -103,10 +107,9 @@ void LANDSHARKS_MS5837::setFluidDensity(float density) {
 }
 
 void LANDSHARKS_MS5837::read() {
-	static uint32_t pressReadStartTime = 0;
-	static uint32_t tempReadStartTime  = 0;
+	static uint32_t readStartTime = 0;
 	
-	static bool pressReadNext = true;
+	static bool valToRead = PRES;
 	
 	//Check that _i2cPort is not NULL (i.e. has the user forgoten to call .init or .begin?)
 	if (_i2cPort == NULL)
@@ -115,7 +118,7 @@ void LANDSHARKS_MS5837::read() {
 	}
 	
 	//if 20ms have passed since read AND the next reading should be a D1 (pressure) reading, read.
-	if(millis() - pressReadStartTime > 20 && pressReadNext) {
+	if(millis() - readStartTime > 20) {
 		//get requested D1 numbers
 		_i2cPort->beginTransmission(MS5837_ADDR);
 		_i2cPort->write(MS5837_ADC_READ);
@@ -125,56 +128,34 @@ void LANDSHARKS_MS5837::read() {
 		}
 
 		_i2cPort->requestFrom(MS5837_ADDR,(byte)3);
-		D1_pres = 0;
-		D1_pres = _i2cPort->read();
-		D1_pres = (D1_pres << 8) | _i2cPort->read();
-		D1_pres = (D1_pres << 8) | _i2cPort->read();
+		uint32_t readVal = 0;
+		readVal = _i2cPort->read();
+		readVal = (readVal << 8) | _i2cPort->read();
+		readVal = (readVal << 8) | _i2cPort->read();
 
-		// Request D2 conversion
+		// Request conversion
 		_i2cPort->beginTransmission(MS5837_ADDR);
-		_i2cPort->write(MS5837_CONVERT_D2_8192);
+		if(valToRead == PRES) {
+			_i2cPort->write(MS5837_CONVERT_D2_8192);
+			valToRead = TEMP;
+			D1_pres = readVal;
+		}
+		else {
+			_i2cPort->write(MS5837_CONVERT_D1_8192);
+			valToRead = PRES;
+			D2_temp = readVal;
+		}
+		
 		if(_i2cPort->endTransmission() != 0){
 			connectionGood = false;	
 			return;
 		}
 		
-		tempReadStartTime = millis(); //start a timer for the temperature read
-		pressReadNext = false; //ensure the next reading is a temperautre reading
+		readStartTime = millis(); //start a timer for the temperature read
 		
 		connectionGood = true;
 		
 		calculate(); //calculate only gets run when necessary
-	}
-	
-	if(millis() - tempReadStartTime > 20 && !pressReadNext) {
-		//get requested D2 numbers
-		_i2cPort->beginTransmission(MS5837_ADDR);
-		_i2cPort->write(MS5837_ADC_READ);
-		if(_i2cPort->endTransmission() != 0){
-			connectionGood = false;	
-			return;
-		}
-
-		_i2cPort->requestFrom(MS5837_ADDR,(byte)3);
-		D2_temp = 0;
-		D2_temp = _i2cPort->read();
-		D2_temp = (D2_temp << 8) | _i2cPort->read();
-		D2_temp = (D2_temp << 8) | _i2cPort->read();
-
-		// Request D1 conversion
-		_i2cPort->beginTransmission(MS5837_ADDR);
-		_i2cPort->write(MS5837_CONVERT_D1_8192);
-		if(_i2cPort->endTransmission() != 0){
-			connectionGood = false;	
-			return;
-		}
-		
-		pressReadStartTime = millis();
-		pressReadNext = true;
-		
-		connectionGood = true;
-		
-		calculate();
 	}
 }
 
