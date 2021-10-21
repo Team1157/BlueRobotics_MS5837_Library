@@ -8,9 +8,6 @@ const uint8_t MS5837_PROM_READ = 0xA0;
 const uint8_t MS5837_CONVERT_D1_8192 = 0x4A;
 const uint8_t MS5837_CONVERT_D2_8192 = 0x5A;
 
-const bool PRES = false;
-const bool TEMP = true;
-
 const float LANDSHARKS_MS5837::Pa = 100.0f;
 const float LANDSHARKS_MS5837::bar = 0.001f;
 const float LANDSHARKS_MS5837::mbar = 1.0f;
@@ -28,11 +25,8 @@ LANDSHARKS_MS5837::MS5837() {
 	fluidDensity = 1029;
 }
 */
-bool LANDSHARKS_MS5837::begin(TwoWire &wirePort) {
-	return (init(wirePort));
-}
 
-bool LANDSHARKS_MS5837::init(TwoWire &wirePort) {
+void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	_i2cPort = &wirePort; //Grab which port the user wants us to use
 
 	_i2cPort->setWireTimeout(1000, true); //undocumented feature of Arduino i2c library. Needed to prevent a disconnect from locking up the program.
@@ -40,10 +34,7 @@ bool LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	// Reset the MS5837, per datasheet
 	_i2cPort->beginTransmission(MS5837_ADDR);
 	_i2cPort->write(MS5837_RESET);
-	if(_i2cPort->endTransmission() != 0){
-		connectionGood = false;
-		return;
-	}
+	_i2cPort->endTransmission();
 
 	// Wait for reset to complete
 	delay(10);
@@ -63,7 +54,7 @@ bool LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	uint8_t crcCalculated = crc4(C);
 
 	if ( crcCalculated != crcRead ) {
-		return false; // CRC fail
+		return; // CRC fail
 	}
 
 	uint8_t version = (C[0] >> 5) & 0x7F; // Extract the sensor version from PROM Word 0
@@ -85,12 +76,22 @@ bool LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	{
 		_model = MS5837_UNRECOGNISED;
 	}
+	
+	_i2cPort->beginTransmission(MS5837_ADDR);
+	_i2cPort->write(MS5837_CONVERT_D1_8192);
+	if(_i2cPort->endTransmission() != 0){
+		connectionGood = false;	
+		return;
+	}
 	// The sensor has passed the CRC check, so we should return true even if
 	// the sensor version is unrecognised.
 	// (The MS5637 has the same address as the MS5837 and will also pass the CRC check)
 	// (but will hopefully be unrecognised.)
+
+	readStartTime = millis();
+
 	initialized = true;
-	return true;
+	return;
 }
 
 bool LANDSHARKS_MS5837::isInitialized() {
@@ -110,20 +111,20 @@ void LANDSHARKS_MS5837::setFluidDensity(float density) {
 }
 
 void LANDSHARKS_MS5837::read() {
-	static uint32_t readStartTime = 0;
-	
-	static bool valToRead = PRES;
-	
+	static bool readPressNext = true;
+
 	//if 20ms have passed since read AND the next reading should be a D1 (pressure) reading, read.
-	if(millis() - readStartTime > 20) {
-		//get requested D1 numbers
+	if(millis() - readStartTime > 20 && initialized) {
+		//setup get requested numbers
 		_i2cPort->beginTransmission(MS5837_ADDR);
 		_i2cPort->write(MS5837_ADC_READ);
 		if(_i2cPort->endTransmission() != 0){
 			connectionGood = false;
+			initialized = false;
 			return;
 		}
 
+		//get requested numbers
 		_i2cPort->requestFrom(MS5837_ADDR,(byte)3);
 		uint32_t readVal = 0;
 		readVal = _i2cPort->read();
@@ -132,24 +133,25 @@ void LANDSHARKS_MS5837::read() {
 
 		// Request conversion
 		_i2cPort->beginTransmission(MS5837_ADDR);
-		if(valToRead == PRES) {
+		if(readPressNext == true) {
 			_i2cPort->write(MS5837_CONVERT_D2_8192);
-			valToRead = TEMP;
+			readPressNext = false;
 			D1_pres = readVal;
 		}
 		else {
 			_i2cPort->write(MS5837_CONVERT_D1_8192);
-			valToRead = PRES;
+			readPressNext = true;
 			D2_temp = readVal;
+			
+			connectionGood = true; //wait until good temperature reading to set connection good
 		}
 		if(_i2cPort->endTransmission() != 0){
-			connectionGood = false;	
+			connectionGood = false;
+			initialized = false;
 			return;
 		}
 		
-		readStartTime = millis(); //start a timer for the temperature read
-		
-		connectionGood = true;
+		readStartTime = millis(); //start a timer for the read
 		
 		calculate(); //calculate only gets run when necessary
 	}

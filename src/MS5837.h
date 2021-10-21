@@ -52,8 +52,7 @@ public:
 
 	//MS5837();
 
-	bool init(TwoWire &wirePort = Wire);
-	bool begin(TwoWire &wirePort = Wire); // Calls init()
+	void init(TwoWire &wirePort = Wire);
 
 	/** Set model of MS5837 sensor. Valid options are MS5837::MS5837_30BA (default)
 	 * and MS5837::MS5837_02BA.
@@ -100,7 +99,9 @@ private:
 	uint8_t _model;
 	
 	bool connectionGood = false;
-	bool initialized;
+	bool initialized = false;
+
+	uint32_t readStartTime = 0;
 
 	float fluidDensity = 1029;
 
