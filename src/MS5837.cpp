@@ -30,14 +30,12 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	
 	if(status == 0) {
 		// Reset the MS5837, per datasheet
-		status = RESET_SUCCESS;
+		status = 1;
 		resetTimer = millis();
 
 		if(!sendByte(MS5837_RESET)) {
-			status = NEEDS_RESET;
+			status = 0;
 		}
-		
-		Serial.println(status);
 	}
 	
 	if(millis() - resetTimer < 10) {
@@ -57,7 +55,7 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	uint8_t crcCalculated = crc4(C);
 
 	if ( crcCalculated != crcRead ) {
-		status = NEEDS_RESET;
+		status = 0;
 		return; // CRC fail
 	}
 
@@ -79,14 +77,13 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	
 	//request first conversion
 	if(!sendByte(MS5837_CONVERT_D1_8192)) {
-		status = RESET_SUCCESS;
+		status = 1;
 		return;
 	}
 
 	readStartTime = millis();
 
-	status = INIT_SUCCESS;
-	Serial.println(status);
+	status = 2;
 }
 
 void LANDSHARKS_MS5837::setModel(uint8_t model) {
@@ -120,11 +117,10 @@ void LANDSHARKS_MS5837::read() {
 	static bool readPressNext = true;
 
 	//if 20ms have passed since read AND the next reading should be a D1 (pressure) reading, read.
-	if(millis() - readStartTime > 20 && status >= INIT_SUCCESS) {
+	if(millis() - readStartTime > 20 && status >= 2) {
 		//setup get requested numbers
 		if(!sendByte(MS5837_ADC_READ)) {
-			status = NEEDS_RESET;
-			readPressNext = true;
+			status = 0;
 			return;
 		}
 
@@ -140,19 +136,17 @@ void LANDSHARKS_MS5837::read() {
 			D1_pres = readVal;
 
 			if(!sendByte(MS5837_CONVERT_D2_8192)) {
-				status = NEEDS_RESET;
-				readPressNext = true;
+				status = 0;
 				return;
 			}
 		}
 		else {
 			readPressNext = true;
 			D2_temp = readVal;
-			status = CONN_GOOD;
+			status = 3;
 			
 			if(!sendByte(MS5837_CONVERT_D1_8192)) {
-				status = NEEDS_RESET;
-				readPressNext = true;
+				status = 0;
 				return;
 			}
 		}
