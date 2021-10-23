@@ -50,6 +50,13 @@ public:
 	static const uint8_t MS5837_02BA;
 	static const uint8_t MS5837_UNRECOGNISED;
 
+	const uint8_t NEEDS_RESET   = 0;
+	const uint8_t RESET_SUCCESS = 1;
+	const uint8_t INIT_SUCCESS  = 2;
+	const uint8_t CONN_GOOD     = 3;
+	
+	uint32_t D1_pres, D2_temp;
+
 	void init(TwoWire &wirePort = Wire);
 
 	/** Set model of MS5837 sensor. Valid options are MS5837::MS5837_30BA (default)
@@ -92,7 +99,7 @@ private:
 	TwoWire * _i2cPort;
 
 	uint16_t C[8];
-	uint32_t D1_pres, D2_temp;
+	
 	int32_t TEMP;
 	int32_t P;
 	uint8_t _model;
