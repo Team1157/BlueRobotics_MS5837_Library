@@ -50,8 +50,6 @@ public:
 	static const uint8_t MS5837_02BA;
 	static const uint8_t MS5837_UNRECOGNISED;
 
-	//MS5837();
-
 	void init(TwoWire &wirePort = Wire);
 
 	/** Set model of MS5837 sensor. Valid options are MS5837::MS5837_30BA (default)
@@ -65,9 +63,10 @@ public:
 	 */
 	void setFluidDensity(float density);
 
-	bool isConnectionGood();
-	bool isInitialized();
-	 
+	uint8_t getStatus();
+
+	bool sendByte(uint8_t conversion);
+
 	void read();
 
 	/** Pressure returned in mbar or mbar*conversion rate.
@@ -98,8 +97,7 @@ private:
 	int32_t P;
 	uint8_t _model;
 	
-	bool connectionGood = false;
-	bool initialized = false;
+	uint8_t status = 0;
 
 	uint32_t readStartTime = 0;
 
