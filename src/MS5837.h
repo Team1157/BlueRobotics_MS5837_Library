@@ -50,13 +50,14 @@ public:
 	static const uint8_t MS5837_02BA;
 	static const uint8_t MS5837_UNRECOGNISED;
 
-	const uint8_t NEEDS_RESET   = 0;
-	const uint8_t RESET_SUCCESS = 1;
-	const uint8_t INIT_SUCCESS  = 2;
-	const uint8_t CONN_GOOD     = 3;
-	
-	uint32_t D1_pres, D2_temp;
+	static const uint8_t NEEDS_RESET   = 0;
+	static const uint8_t RESET_SUCCESS = 1;
+	static const uint8_t INIT_SUCCESS  = 2;
+	static const uint8_t CONN_GOOD     = 3;
 
+	/* initialize the I2C interface. 
+	 * Keep running this until the status variable is INIT_SUCCESS
+	 */
 	void init(TwoWire &wirePort = Wire);
 
 	/** Set model of MS5837 sensor. Valid options are MS5837::MS5837_30BA (default)
@@ -70,11 +71,13 @@ public:
 	 */
 	void setFluidDensity(float density);
 
+	/* return the status variable
+	 */
 	uint8_t getStatus();
 
-	bool sendByte(uint8_t conversion);
-
-	void read();
+	/* try to update the pressure and temperature values
+	 */
+	void updateValues();
 
 	/** Pressure returned in mbar or mbar*conversion rate.
 	 */
@@ -94,28 +97,34 @@ public:
 	float altitude();
 
 private:
-
 	//This stores the requested i2c port
 	TwoWire * _i2cPort;
 
-	uint16_t C[8];
+	uint16_t C[8]; //stores calibration constants from sensor PROM
 	
-	int32_t TEMP;
-	int32_t P;
-	uint8_t _model;
+	uint32_t D1_pres, D2_temp;
 	
-	uint8_t status = 0;
+	int32_t TEMP; //temperature
+	int32_t P; //pressure
+	uint8_t _model; //sensor variant
+	
+	uint8_t status = 0; //status variable. Gets set to a higher value each time the code reaches a new checkpoint
 
-	uint32_t readStartTime = 0;
+	uint32_t readStartTime = 0; //holds the time of each read request sent. Only attempt to read after this has incremented 20ms
 
-	float fluidDensity = 1029;
+	float fluidDensity = 1029; //default fluid density for depth calcuation
 
 	/** Performs calculations per the sensor data sheet for conversion and
 	 *  second order compensation.
 	 */
+	
+	/* send a byte to the device, return true if successful
+	*/
+	bool sendByte(uint8_t value); 
+	 
 	void calculate();
 
-	uint8_t crc4(uint16_t n_prom[]);
+	uint8_t crc4(uint16_t n_prom[]); //PROM data integrity check
 };
 
 #endif

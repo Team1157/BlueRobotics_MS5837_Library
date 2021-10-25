@@ -28,16 +28,17 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	// Wait for reset to complete
 	static uint32_t resetTimer = 0;
 	
-	if(status == 0) {
-		// Reset the MS5837, per datasheet
-		status = RESET_SUCCESS;
+	if(status == NEEDS_RESET) {
 		resetTimer = millis();
 
-		if(!sendByte(MS5837_RESET)) {
+		if(!sendByte(MS5837_RESET)) { //if the send is unsuccessful
 			status = NEEDS_RESET;
 		}
+		else {
+			status = RESET_SUCCESS;
+		}
 		
-		Serial.println(status);
+		return; //in either case, it's more efficient to exit the code here.
 	}
 	
 	if(millis() - resetTimer < 10) {
@@ -48,12 +49,12 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	for ( uint8_t i = 0 ; i < 7 ; i++ ) {
 		sendByte(MS5837_PROM_READ+i*2);
 		
-		_i2cPort->requestFrom(MS5837_ADDR,(byte)2);
-		C[i] = (_i2cPort->read() << 8) | _i2cPort->read();
+		_i2cPort->requestFrom(MS5837_ADDR, (byte)2);
+		C[i] = (_i2cPort->read() << 8) | _i2cPort->read(); //two 8-bit to one 16-bit number
 	}
 
 	// Verify that data is correct with CRC
-	uint8_t crcRead = C[0] >> 12;
+	uint8_t crcRead = C[0] >> 12; //first four bits
 	uint8_t crcCalculated = crc4(C);
 
 	if ( crcCalculated != crcRead ) {
@@ -65,13 +66,13 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 
 	// Set _model according to the sensor version
 	if (version == MS5837_02BA01) {
-		_model = MS5837_02BA;
+		_model = MS5837_02BA; //high precision 2 bar version
 	}
 	else if (version == MS5837_02BA21) {
 		_model = MS5837_02BA;
 	}
 	else if (version == MS5837_30BA26) {
-		_model = MS5837_30BA;
+		_model = MS5837_30BA; //medium precision 30bar version
 	}
 	else {
 		_model = MS5837_UNRECOGNISED;
@@ -83,10 +84,8 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 		return;
 	}
 
-	readStartTime = millis();
-
+	readStartTime = millis(); //start read timer for the first read
 	status = INIT_SUCCESS;
-	Serial.println(status);
 }
 
 void LANDSHARKS_MS5837::setModel(uint8_t model) {
@@ -105,21 +104,16 @@ uint8_t LANDSHARKS_MS5837::getStatus() {
 	return status;
 }
 
-bool LANDSHARKS_MS5837::sendByte(uint8_t conversion) {
+bool LANDSHARKS_MS5837::sendByte(uint8_t value) {
 	_i2cPort->beginTransmission(MS5837_ADDR);
-	_i2cPort->write(conversion);
-	if(_i2cPort->endTransmission() != 0) {
-		return false;
-	}
-	else {
-		return true;
-	}
+	_i2cPort->write(value);
+	return _i2cPort->endTransmission();
 }
 
-void LANDSHARKS_MS5837::read() {
+void LANDSHARKS_MS5837::updateValues() {
 	static bool readPressNext = true;
 
-	//if 20ms have passed since read AND the next reading should be a D1 (pressure) reading, read.
+	//if 20ms have passed since previous request and the init routine has finished
 	if(millis() - readStartTime > 20 && status >= INIT_SUCCESS) {
 		//setup get requested numbers
 		if(!sendByte(MS5837_ADC_READ)) {
@@ -131,41 +125,42 @@ void LANDSHARKS_MS5837::read() {
 		//get requested numbers
 		_i2cPort->requestFrom(MS5837_ADDR,(byte)3);
 		uint32_t readVal = 0;
-		readVal = _i2cPort->read();
+		readVal = _i2cPort->read(); //3 8-bit to one 24-bit (stored in a 32-bit)
 		readVal = (readVal << 8) | _i2cPort->read();
 		readVal = (readVal << 8) | _i2cPort->read();
 		
-		if(readPressNext) {
+		uint8_t byteToSend;
+		if(readPressNext) { //if it's the pressure sensor's turn to be read
 			readPressNext = false;
 			D1_pres = readVal;
-
-			if(!sendByte(MS5837_CONVERT_D2_8192)) {
-				status = NEEDS_RESET;
-				readPressNext = true;
-				return;
-			}
+			
+			byteToSend = MS5837_CONVERT_D2_8192;
 		}
 		else {
 			readPressNext = true;
 			D2_temp = readVal;
-			status = CONN_GOOD;
 			
-			if(!sendByte(MS5837_CONVERT_D1_8192)) {
-				status = NEEDS_RESET;
-				readPressNext = true;
-				return;
-			}
+			//only set the connection to good and convert ACD values to pressure/temp values once both values have been read
+			status = CONN_GOOD; 
+			calculate();
+			
+			byteToSend = MS5837_CONVERT_D1_8192;
+		}
+		
+		if(!sendByte(byteToSend)) {
+			status = NEEDS_RESET;
+			readPressNext = true;
+			return;
 		}
 		
 		readStartTime = millis(); //start a timer for the read
-		
-		calculate(); //calculate only gets run when necessary
 	}
 }
 
 void LANDSHARKS_MS5837::calculate() {
 	// Given C1-C6 and D1, D2, calculated TEMP and P
 	// Do conversion first and then second order temp compensation
+	// This is an implementation of the exact calculations from the datasheet.
 
 	int32_t dT = 0;
 	int64_t SENS = 0;
@@ -215,7 +210,7 @@ void LANDSHARKS_MS5837::calculate() {
 		}
 	}
 
-	OFF2 = OFF-OFFi;           //Calculate pressure and temp second order
+	OFF2 = OFF-OFFi; //Calculate pressure and temp second order
 	SENS2 = SENS-SENSi;
 
 	TEMP = (TEMP-Ti);
@@ -254,6 +249,7 @@ float LANDSHARKS_MS5837::altitude() {
 	return (1-pow((pressure()/1013.25),.190284))*145366.45*.3048;
 }
 
+//this code comes from the datasheet.
 uint8_t LANDSHARKS_MS5837::crc4(uint16_t n_prom[]) {
 	uint16_t n_rem = 0;
 
