@@ -50,12 +50,10 @@ public:
 	static const uint8_t MS5837_02BA;
 	static const uint8_t MS5837_UNRECOGNISED;
 
-	const uint8_t NEEDS_RESET   = 0;
-	const uint8_t RESET_SUCCESS = 1;
-	const uint8_t INIT_SUCCESS  = 2;
-	const uint8_t CONN_GOOD     = 3;
-	
-	uint32_t D1_pres, D2_temp;
+	static const uint8_t NEEDS_RESET   = 0;
+	static const uint8_t RESET_SUCCESS = 1;
+	static const uint8_t INIT_SUCCESS  = 2;
+	static const uint8_t CONN_GOOD     = 3;
 
 	void init(TwoWire &wirePort = Wire);
 
@@ -103,6 +101,8 @@ private:
 	int32_t TEMP;
 	int32_t P;
 	uint8_t _model;
+	
+	uint32_t D1_pres, D2_temp;
 	
 	uint8_t status = 0;
 

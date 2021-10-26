@@ -28,16 +28,16 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	// Wait for reset to complete
 	static uint32_t resetTimer = 0;
 	
-	if(status == 0) {
+	if(status == NEEDS_RESET) {
 		// Reset the MS5837, per datasheet
-		status = RESET_SUCCESS;
 		resetTimer = millis();
 
 		if(!sendByte(MS5837_RESET)) {
 			status = NEEDS_RESET;
 		}
-		
-		Serial.println(status);
+		else {
+			status = RESET_SUCCESS;
+		}
 	}
 	
 	if(millis() - resetTimer < 10) {
@@ -86,7 +86,6 @@ void LANDSHARKS_MS5837::init(TwoWire &wirePort) {
 	readStartTime = millis();
 
 	status = INIT_SUCCESS;
-	Serial.println(status);
 }
 
 void LANDSHARKS_MS5837::setModel(uint8_t model) {
